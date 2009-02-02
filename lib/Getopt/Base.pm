@@ -1,5 +1,5 @@
 package Getopt::Base;
-$VERSION = v0.0.1;
+$VERSION = v0.0.2;
 
 use warnings;
 use strict;
@@ -174,12 +174,13 @@ sub process {
   return() if($self->{stopped} < 0);
 
   $self->store(@$_) for(@$toset);
+  my %is_set = map({$_->[0]->{name} => 1} @$toset);
 
   # evaluate positionals
   if(@$args) {
     # TODO this needs better logic for e.g. qw(list scalar scalar)
     foreach my $k (@{$self->{positional}}) {
-      if(! $o->{$k} or $self->{opt_data}{$k}{form}) {
+      if(! $is_set{$k} or $self->{opt_data}{$k}{form}) {
         $self->store($k, shift(@$args));
       }
       @$args or last; # TODO check requiredness?

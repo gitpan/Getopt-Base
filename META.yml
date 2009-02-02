@@ -1,6 +1,6 @@
 ---
 name: Getopt-Base
-version: v0.0.1
+version: v0.0.2
 author:
   - 'Eric Wilhelm @ <ewilhelm at cpan dot org>'
 abstract: foundation for oo GetOpt support
@@ -20,7 +20,7 @@ build_requires:
 provides:
   Getopt::Base:
     file: lib/Getopt/Base.pm
-    version: v0.0.1
+    version: v0.0.2
   Getopt::Base::Accessors:
     file: lib/Getopt/Base.pm
 generated_by: Module::Build version 0.3103
