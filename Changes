@@ -1,5 +1,17 @@
 Revision history for Getopt-Base
 
+v0.0.3 2013-06-03
+
+  * hooks + defaults
+
+  * allow --foo=bar usage
+
+  * allow lazy default via coderef
+
+  * honor isa settings on defaults
+
+  * require perl 5.8 (maybe only needed for test code)
+
 v0.0.2 2009-02-01
 
   - fixed positional+default conflict 

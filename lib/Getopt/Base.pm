@@ -1,5 +1,5 @@
 package Getopt::Base;
-$VERSION = v0.0.2;
+$VERSION = v0.0.3;
 
 use warnings;
 use strict;
@@ -160,6 +160,7 @@ sub process {
 
     if($dash eq '') { $self->process_arg($arg); }
     elsif($dash eq '--') {
+      if($arg =~ s/=(.*)//) { unshift(@$args, $1); }
       $self->process_option($self->_find_option($arg), $args);
     }
     elsif($dash eq '-') {
@@ -173,8 +174,22 @@ sub process {
   @$args = (@$keep, @$args);
   return() if($self->{stopped} < 0);
 
-  $self->store(@$_) for(@$toset);
   my %is_set = map({$_->[0]->{name} => 1} @$toset);
+
+  # always call hooked options with defined defaults
+  #   (or else need to define a setting for this)
+  foreach my $d (
+    grep {$_->{call} and $_->{default}} values %{$self->{opt_data}}
+  ) {
+    next if $is_set{$d->{name}};
+    my $def = $d->{default};
+    $def = (ref($def) || '') eq 'CODE' ? $def->() : $def;
+    $self->store($d, $def);
+    $d->{call}->($self, $def);
+  }
+
+  # store all other inputs
+  $self->store(@$_) for(@$toset);
 
   # evaluate positionals
   if(@$args) {
@@ -184,6 +199,19 @@ sub process {
         $self->store($k, shift(@$args));
       }
       @$args or last; # TODO check requiredness?
+    }
+  }
+
+  # pickup any lazy defaults at this point
+  if(my $def = $self->{_defaults}) {
+    foreach my $do (@$def) {
+      my ($k, $sub) = @$do;
+      next if(exists $o->{$k});
+      if(my $isa = $self->{opt_data}{$k}{isa}) {
+        eval("require $isa");
+        $@ and croak("ack: $@");
+      }
+      $self->store($k, $sub->());
     }
   }
 
@@ -251,6 +279,7 @@ sub process_option {
     # TODO should we try to set a value?
     # TODO this should probably also be in the store() routine?
     my $check = $self->_checker($name);
+    push(@$toset, [$d, $v]);
     return $sub->($self, $check->($v));
   }
   else {
@@ -308,7 +337,7 @@ sub add_option {
   croak("options cannot contain dashes ('$name')") if($name =~ m/-/);
   unless($s{form}) {
     my $ref = ref($s{default});
-    $s{form} = $ref if($ref);
+    $s{form} = $ref if($ref and $ref ne 'CODE');
   }
   else {
     $s{form} = uc($s{form});
@@ -421,7 +450,8 @@ sub store {
   my ($k, @v) = @_;
 
   my $o = $self->{object} or croak("out of context");
-  my $d = ref($k) ? $k : $self->{opt_data}{$k};
+  my $d = ref($k) ? $k : $self->{opt_data}{$k} or
+    croak("no such option: $k");
   $k = $d->{name};
 
   my $check = $self->_checker($k);
@@ -463,7 +493,8 @@ sub _checker {
   if(my $isa = $d->{isa}) {
     eval("require $isa");
     $@ and croak("ack: $@");
-    $checkcode .= '$val = ' . "$isa" . '->new($val);';
+    $checkcode .= '$val = ' . "$isa" . '->new($val) ' .
+      " unless(eval {\$val->isa('$isa')});";
   }
   if(my $type = $d->{type}) {
     # TODO check integer/number-ness
@@ -490,7 +521,15 @@ sub set_values {
 
   foreach my $k (keys %hash) {
     # XXX I need to think about whether this has exceptional cases
-    $self->store($k, $hash{$k});
+    my $v = $hash{$k};
+    my $ref = ref($v);
+    $self->store($k, $ref
+      ? $ref eq 'HASH'
+        ? %$v
+        : $ref eq 'ARRAY'
+          ? @$v
+          : $v
+      : $v);
   }
 } # end subroutine set_values definition
 ########################################################################
@@ -522,7 +561,17 @@ Constructs an empty (with defaults) data object from the set options.
 
 sub make_object {
   my $self = shift;
-  return Getopt::Base::Accessors->new($self->{opt_data});
+  my $obj = Getopt::Base::Accessors->new($self->{opt_data});
+  # XXX should find a nicer way to pass these around
+  $self->{_defaults} = delete $obj->{__defaults};
+
+  # XXX ugly, but we need to honor isa on default values
+  foreach my $k (keys %$obj) {
+    my $checker = $self->_checker($k);
+    $obj->{$k} = $checker->($obj->{$k});
+  }
+
+  return $obj;
 } # make_object ########################################################
 
 
@@ -581,7 +630,7 @@ sub _unbundle {
 
   foreach my $i (0..($#d-1)) {
     croak("option '$d[$i]->{name}' is not a bundle-able flag")
-      unless($d[$i]->{boolean});
+      unless($d[$i]->{type} eq 'boolean');
   }
   return(@d);
 } # end subroutine _unbundle definition
@@ -615,21 +664,34 @@ sub new {
     # warn "$k\n";
     my $o = $opt_data->{$k};
     next if(($o->{type} ||'' eq 'boolean') and $o->{opposes});
-    my $def = $o->{default};
     my $sub;
     if(my $r = $o->{form}) {
+      # warn "form for $k : $r";
+      my $def = $o->{default};
       if($r eq 'HASH') {
         $self->{$k} = {$def ? %$def : ()};
         $sub = eval("sub {\%{shift->{$k}}}");
       }
-      else {
+      elsif($r eq 'ARRAY') {
         $self->{$k} = [$def ? @$def : ()];
         $sub = eval("sub {\@{shift->{$k}}}");
+      }
+      else {
+        Carp::croak("unknown ref type '$r'");
       }
     }
     else {
       $sub = eval("sub {shift->{$k}}");
-      $self->{$k} = $def if(exists($o->{default}));
+      if(exists $o->{default}) {
+        my $def = $o->{default};
+        if((ref($def)||'') eq 'CODE') {
+          # lazy
+          push(@{$self->{__defaults}}, [$k, $def]);
+        }
+        else {
+          $self->{$k} = $def
+        }
+      }
     }
     {
       no strict 'refs';

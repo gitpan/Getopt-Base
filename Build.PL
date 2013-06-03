@@ -9,7 +9,7 @@ my $builder = $build_class->new(
   license             => 'perl',
   dist_version_from   => 'lib/Getopt/Base.pm',
   requires => {
-    perl => '5.006002',
+    perl => '5.008000', # because I don't want to rewrite the tests
   },
   build_requires => {
     'Module::Build' => 0.26,

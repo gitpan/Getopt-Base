@@ -166,35 +166,77 @@ use Getopt::Base;
     '--array', 'foo', '--ahash', 'x=y',
     '--array', 'y', '--ahash', 'y=x',
     '--also', 7, '--also', 8,
+    '--array=bar', '--ahash=n=9',
   ]);
-  is_deeply([$o->array], [foo => y =>]);
-  is_deeply({$o->ahash}, {x => y => y => x =>});
+  is_deeply([$o->array], [foo => y => bar =>]);
+  is_deeply({$o->ahash}, {x => 'y' => y => 'x', n => 9});
   is_deeply([$o->also], [7,8]);
 }
 ########################################################################
 # isa
 {
   my $did_req;
-  my $source = 'package xthbbt; sub new {return join("|", @_, 19)}; 1;';
+  my $source = 'package xthbbt;
+    no warnings "redefine"; # silly TAP::Harness -w junk
+    sub new {bless [@_, 19], "xthbbt"}
+    sub x {$_[0]->[1]} 1;';
   local @INC = (
     sub {
       my ($code, $mod) = @_;
-      return unless($mod =~ m/^xthbbt\.pm$/);
+      return unless($mod eq 'xthbbt.pm');
       $did_req = 1;
       open(my $fh, '<', \$source) or die $!;
       return($fh);
     },
     @INC
   );
-  my $go = Getopt::Base->new(
-    options => [xx => { type => 'string', isa => 'xthbbt' }]
-  );
-  my $o = $go->process(my $args = ['--xx', 'foo']);
-  ok($o);
-  is(scalar(@$args), 0);
-  ok($did_req, 'require ok');
-  is($o->xx, 'xthbbt|foo|19');
-  delete($INC{'xthbbt.pm'});
+  { # no default
+    my $go = Getopt::Base->new(
+      options => [xx => { type => 'string', isa => 'xthbbt' }]
+    );
+    my $o = $go->process(my $args = ['--xx', 'foo']);
+    ok($o);
+    is(scalar(@$args), 0);
+    ok($did_req, 'require ok');
+    is($o->xx->x, 'foo');
+    delete($INC{'xthbbt.pm'});
+  }
+  { # simple default
+    my $go = Getopt::Base->new(
+      options => [xx => { type => 'string', isa => 'xthbbt',
+        default => 'nnn'}]
+    );
+    my $o = $go->process(my $args = []);
+    ok($o);
+    is(scalar(@$args), 0);
+    ok($did_req, 'require ok');
+    is($o->xx->x, 'nnn', 'default');
+    delete($INC{'xthbbt.pm'});
+  }
+  { # code default
+    my $go = Getopt::Base->new(
+      options => [xx => { type => 'string', isa => 'xthbbt',
+        default => sub {'nnn'} }]
+    );
+    my $o = $go->process(my $args = []);
+    ok($o);
+    is(scalar(@$args), 0);
+    ok($did_req, 'require ok');
+    is($o->xx->x, 'nnn', 'coderef default');
+    delete($INC{'xthbbt.pm'});
+  }
+  { # code default 2
+    my $go = Getopt::Base->new(
+      options => [xx => { type => 'string', isa => 'xthbbt',
+        default => sub {xthbbt->new('nnn')} }]
+    );
+    my $o = $go->process(my $args = []);
+    ok($o);
+    is(scalar(@$args), 0);
+    ok($did_req, 'require ok');
+    is($o->xx->x, 'nnn', 'coderef default');
+    delete($INC{'xthbbt.pm'});
+  }
 }
 
 ########################################################################

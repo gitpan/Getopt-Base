@@ -1,29 +1,30 @@
 ---
-name: Getopt-Base
-version: v0.0.2
+abstract: 'foundation for oo GetOpt support'
 author:
   - 'Eric Wilhelm @ <ewilhelm at cpan dot org>'
-abstract: foundation for oo GetOpt support
+build_requires:
+  Module::Build: 0.26
+  Test::More: 0
+configure_requires:
+  Module::Build: 0.31
+dynamic_config: 1
+generated_by: 'Module::Build version 0.4005, CPAN::Meta::Converter version 2.131490'
 license: perl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Getopt-Base
+provides:
+  Getopt::Base:
+    file: lib/Getopt/Base.pm
+    version: v0.0.3
+  Getopt::Base::Accessors:
+    file: lib/Getopt/Base.pm
+requires:
+  perl: 5.008000
 resources:
   bugtracker: http://rt.cpan.org/NoAuth/Bugs.html?Dist=Getopt-Base
   homepage: http://scratchcomputing.com/
   license: http://dev.perl.org/licenses/
   repository: http://svn.scratchcomputing.com/Getopt-Base/trunk
-configure_requires:
-  Module::Build: 0.31
-requires:
-  perl: 5.006002
-build_requires:
-  Module::Build: 0.26
-  Test::More: 0
-provides:
-  Getopt::Base:
-    file: lib/Getopt/Base.pm
-    version: v0.0.2
-  Getopt::Base::Accessors:
-    file: lib/Getopt/Base.pm
-generated_by: Module::Build version 0.3103
-meta-spec:
-  url: http://module-build.sourceforge.net/META-spec-v1.2.html
-  version: 1.2
+version: v0.0.3
